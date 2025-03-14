@@ -27,6 +27,14 @@ Return the proper image name (for the init container volume-permissions image)
 {{- end -}}
 
 {{/*
+Return the proper image name (for the init container dynamic-seed-discovery image)
+*/}}
+{{- define "cassandra.dynamicSeedDiscovery.image" -}}
+{{ include "common.images.image" (dict "imageRoot" .Values.cluster.dynamicSeedDiscovery.image "global" .Values.global) }}
+{{- end -}}
+
+
+{{/*
 Return the proper Docker Image Registry Secret Names
 */}}
 {{- define "cassandra.imagePullSecrets" -}}
@@ -282,11 +290,12 @@ WARNING: JVM New Heap Size not set in value jvm.newHeapSize. When not set, the c
 {{- end -}}
 
 {{/*
-Dynamic Seed Discovery
+Dynamic Seed Discovery Init-Container
 */}}
 {{- define "cassandra.dynamicSeedDiscovery" -}}
 - name: dynamic-seed-discovery
-  image: alpine:latest
+  image: {{ include "cassandra.dynamicSeedDiscovery.image" .}}
+  imagePullPolicy: {{ .Values.cluster.dynamicSeedDiscovery.image.pullPolicy | quote }}
   command:
       - "/bin/sh"
       - "-c"
@@ -299,12 +308,12 @@ Dynamic Seed Discovery
             echo "$NODE_IP" >> ${DYNAMIC_SEED_DIR}/seed-ips.lst; \
           done && \
         if [ ! -s ${DYNAMIC_SEED_DIR}/seed-ips.lst ]; then \
-          echo "No seed nodes found, using pod's own IP" && \
+          echo "No seed nodes found, using pod's own IP: $POD_IP" && \
           echo $POD_IP > ${DYNAMIC_SEED_DIR}/seed-ips.lst; \
         fi && \
-        cat ${DYNAMIC_SEED_DIR}/seed-ips.lst | head -{{ .Values.cluster.seedCount }} | paste -sd, - > ${DYNAMIC_SEED_DIR}/seed-ips.txt &&
-        echo "Seed nodes: $(cat ${DYNAMIC_SEED_DIR}/seed-ips.txt)"
-
+        echo "Seed nodes: " &&
+        cat ${DYNAMIC_SEED_DIR}/seed-ips.lst | head -2 | paste -sd, - > ${DYNAMIC_SEED_DIR}/seed-ips.txt &&
+        cat ${DYNAMIC_SEED_DIR}/seed-ips.txt
   env:
     - name: POD_IP
       valueFrom:
